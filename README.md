@@ -1,2 +1,3 @@
-<img width="619" height="1372" alt="aws_architecture" src="https://github.com/user-attachments/assets/6b78c479-df03-4e0a-a35e-91fbda99fc93" />
+
+<img width="265" height="136" alt="image" src="https://github.com/user-attachments/assets/6a66e932-5097-4042-91dc-999e7ae1c381" />
 
