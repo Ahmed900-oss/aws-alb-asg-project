@@ -176,9 +176,9 @@ stress --cpu 4 --timeout 600
 
 ## 📧 Contact
 
-**Author:** [Your Name]
-**LinkedIn:** [Your LinkedIn URL]
-**Email:** [Your Email]
+**Author:** Ahmed Nasr Thabit
+**LinkedIn:** https://www.linkedin.com/in/ahmed-thapit/
+**Email:** thaahmed89@gmail.com
 
 ---
 
