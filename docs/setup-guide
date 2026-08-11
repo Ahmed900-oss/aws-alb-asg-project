@@ -1,0 +1,280 @@
+
+## 🎯 Project: "Auto-Scaling Web App with Load Balancer"
+
+### What You'll Build:
+1. **Launch Template** (Blueprint for EC2 instances)
+2. **Auto Scaling Group** (ASG) with scaling policies
+3. **Application Load Balancer** (ALB) to distribute traffic
+4. **Everything works together** seamlessly
+
+---
+
+
+## 📝 Step-by-Step Implementation
+
+### Step 1: Create a Launch Template
+
+**AWS Console: **
+1. Go to **EC2 → Launch Templates** → **Create launch template**
+2. Fill in:
+
+| Setting | Value |
+|---------|-------|
+| **Name** | `WebApp-LT` |
+| **AMI** | Amazon Linux 2 (latest) |
+| **Instance Type** | `t2.micro` |
+| **Key Pair** | Select your existing key |
+| **Security Group** | Create new or select one allowing **HTTP (80)** from anywhere |
+| **User Data** | Paste the script below |
+
+**User Data Script:**
+```bash
+#!/bin/bash
+yum update -y
+yum install -y httpd
+
+# Get instance metadata
+INSTANCE_ID=$(curl -s http://169.254.169.254/latest/meta-data/instance-id)
+AZ=$(curl -s http://169.254.169.254/latest/meta-data/placement/availability-zone)
+
+# Create web page
+cat <<EOF > /var/www/html/index.html
+<!DOCTYPE html>
+<html>
+<head><title>Load Balancer Test</title></head>
+<body style="font-family: Arial; text-align: center; padding: 50px;">
+    <h1 style="color: #ff9900;">🚀 Auto Scaling Demo</h1>
+    <p><strong>Instance ID:</strong> $INSTANCE_ID</p>
+    <p><strong>Availability Zone:</strong> $AZ</p>
+    <p><strong>Current Time:</strong> $(date)</p>
+    <hr>
+    <p>✅ This instance is part of an Auto Scaling Group!</p>
+</body>
+</html>
+EOF
+
+systemctl start httpd
+systemctl enable httpd
+```
+
+---
+
+### Step 2: Create Target Group
+
+**AWS Console:**
+1. Go to **EC2 → Target Groups** → **Create target group**
+2. Fill in:
+
+| Setting | Value |
+|---------|-------|
+| **Target type** | Instances |
+| **Name** | `WebApp-TG` |
+| **Protocol** | HTTP |
+| **Port** | 80 |
+| **VPC** | Select your default VPC |
+| **Health check path** | `/` |
+| **Advanced settings** | |
+| - **Healthy threshold** | 2 |
+| - **Unhealthy threshold** | 2 |
+| - **Timeout** | 5 seconds |
+| - **Interval** | 30 seconds |
+
+3. Click **Create**
+
+---
+
+### Step 3: Create Load Balancer
+
+**AWS Console:**
+1. Go to **EC2 → Load Balancers** → **Create load balancer**
+2. Choose **Application Load Balancer**
+
+**Basic Configuration:**
+| Setting | Value |
+|---------|-------|
+| **Name** | `WebApp-ALB` |
+| **Scheme** | Internet-facing |
+| **IP address type** | IPv4 |
+
+**Network Mapping:**
+| Setting | Value |
+|---------|-------|
+| **VPC** | Select default VPC |
+| **Availability Zones** | Select **at least 2 AZs** |
+
+**Security Groups:**
+- Select or create a SG allowing:
+  - **HTTP** on port **80** from `0.0.0.0/0`
+
+**Listeners & Routing:**
+| Setting | Value |
+|---------|-------|
+| **Protocol** | HTTP |
+| **Port** | 80 |
+| **Default action** | Forward to `WebApp-TG` |
+
+4. Click **Create load balancer**
+
+---
+
+### Step 4: Create Auto Scaling Group
+
+**AWS Console:**
+1. Go to **EC2 → Auto Scaling Groups** → **Create Auto Scaling Group**
+2. Fill in:
+
+**Step 1: Choose launch template**
+| Setting | Value |
+|---------|-------|
+| **Name** | `WebApp-ASG` |
+| **Launch template** | Select `WebApp-LT` |
+| **Version** | Latest |
+
+**Step 2: Configure settings**
+| Setting | Value |
+|---------|-------|
+| **VPC** | Select default VPC |
+| **Subnets** | Select **at least 2 AZs** |
+| **Load balancing** | ✅ Attach to an existing load balancer |
+| **Target group** | Select `WebApp-TG` |
+| **Health checks** | ✅ Use ELB health checks |
+
+**Step 3: Configure scaling policies**
+| Setting | Value |
+|---------|-------|
+| **Desired capacity** | `2` |
+| **Minimum capacity** | `2` |
+| **Maximum capacity** | `5` |
+
+**Scaling Policy:**
+1. Click **Add policy**
+2. Choose **Target tracking scaling**
+3. **Metric:** Average CPU utilization
+4. **Target value:** `60`%
+5. Click **Create**
+
+---
+
+### Step 5: Test Your Setup
+
+**Get the Load Balancer DNS:**
+1. Go to **EC2 → Load Balancers**
+2. Select `WebApp-ALB`
+3. Copy the **DNS name** (e.g., `webapp-alb-123456789.elb.amazonaws.com`)
+
+**Open in browser:**
+```
+http://webapp-alb-123456789.elb.amazonaws.com
+```
+
+**Refresh multiple times** and watch the **Instance ID** change! 🎉
+
+---
+
+## 🧪 Advanced Tests
+
+### Test 1: Simulate High Traffic (Scale Out)
+
+```bash
+# Install Apache Bench
+sudo yum install -y httpd-tools
+
+# Generate load (this will trigger scaling)
+ab -n 10000 -c 100 http://your-alb-dns/
+```
+
+**Watch ASG scale out:**
+- Go to **EC2 → Auto Scaling Groups → WebApp-ASG**
+- Check the **Activity** tab
+- You'll see new instances being launched!
+
+---
+
+### Test 2: Simulate Failure (Scale In)
+
+```bash
+# SSH into one instance and stop it
+sudo systemctl stop httpd
+```
+
+**Watch ASG replace it:**
+- The ASG will detect the instance is unhealthy
+- Terminate it
+- Launch a new healthy instance
+
+---
+
+### Test 3: Test Connection Draining
+
+1. Increase **Desired Capacity** to 3
+2. Wait for new instance to launch
+3. Decrease **Desired Capacity** back to 2
+4. **Observe:** The ASG will:
+   - Mark one instance for termination
+   - Wait for connection draining (default 300 seconds)
+   - Terminate it
+
+---
+
+## 📊 Visual Checklist
+
+| Step | Status | What to Check |
+|------|--------|---------------|
+| **Launch Template** | ✅ | Check User Data script is correct |
+| **Target Group** | ✅ | Health checks are passing |
+| **ALB** | ✅ | DNS name is accessible |
+| **ASG** | ✅ | Instances are launching |
+| **Scaling Policy** | ✅ | Scale out/in based on CPU |
+| **Load Balancer** | ✅ | Traffic distributed across instances |
+| **AZ Distribution** | ✅ | Instances in multiple AZs |
+
+---
+
+## 🎯 What You've Learned
+
+| Concept | How It Works Here |
+|---------|-------------------|
+| **Launch Template** | Defines the EC2 instance configuration |
+| **Target Group** | Tracks healthy instances |
+| **Application Load Balancer** | Distributes traffic across instances |
+| **Auto Scaling Group** | Maintains desired instance count |
+| **Scaling Policy** | Scales based on CPU utilization |
+| **Health Checks** | Replaces unhealthy instances |
+| **Multi-AZ** | Instances spread across AZs for high availability |
+
+---
+
+## 🧹 Cleanup (Save Money!)
+
+**Important:** Delete these resources to avoid charges:
+
+```bash
+# 1. Delete Auto Scaling Group
+aws autoscaling delete-auto-scaling-group --auto-scaling-group-name WebApp-ASG --force-delete
+
+# 2. Delete Load Balancer
+aws elbv2 delete-load-balancer --load-balancer-arn (get from console)
+
+# 3. Delete Target Group
+aws elbv2 delete-target-group --target-group-arn (get from console)
+
+# 4. Delete Launch Template
+aws ec2 delete-launch-template --launch-template-name WebApp-LT
+```
+
+---
+
+
+
+---
+
+## ✅ Final Check
+
+After completing this lab, you should be able to:
+
+- [ ] Explain how ALB and ASG work together
+- [ ] Describe the purpose of a Launch Template
+- [ ] Understand scaling policies
+- [ ] Know how health checks work
+- [ ] Explain connection draining
+- [ ] Understand multi-AZ architecture
